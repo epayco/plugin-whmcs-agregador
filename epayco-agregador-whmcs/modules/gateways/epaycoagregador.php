@@ -86,7 +86,12 @@ function epaycoagregador_link($params){
     }
 
     $countryCode = $params['countryCode'];
-
+    $firstname = $params['clientdetails']['firstname'];
+    $lastname = $params['clientdetails']['lastname'];
+    $email = $params['clientdetails']['email'];
+    $address1 = $params['clientdetails']['address1'];
+    $returnUrl = $params['returnurl'];
+    $billing_name = $firstname." ".$lastname;
     if($params['currencyCode'] == 'default'){
         $clientDetails = localAPI("getclientsdetails", ["clientid" => $params['clientdetails']['userid'], "responsetype" => "json"], $params['WHMCSAdminUser']);
         $currencyCode = strtolower($clientDetails['currency_code']);
@@ -96,31 +101,32 @@ function epaycoagregador_link($params){
 
     $testMode = $params['testMode'] == 'on' ? 'true' : 'false';
 
+    $externalMode = $params['externalMode'] == 'on' ? 'true' : 'false';
+
     $invoice = localAPI("getinvoice", array('invoiceid' => $params['invoiceid']), $params['WHMCSAdminUser']);
-        $command = 'GetInvoice';
-        $postData = array(
-            'invoiceid' => $params['invoiceid'],
-        );
-        $adminUsername = $params['WHMCSAdminUser']; // Optional for WHMCS 7.2 and later
+    $invoiceData = Capsule::table('tblorders')
+        ->select('tblorders.id')
+        ->where('tblorders.invoiceid', '=', $params['invoiceid'])
+        ->get();
 
-$results = localAPI($command, $postData, $adminUsername);
-//print_r($results);
-
-    $description2 = epaycoagregador_getChargeDescription($results['items']['item']);
     $description = epaycoagregador_getChargeDescription($invoice['items']['item']);
-// var_dump($results["subtotal"]);
-// var_dump($results["tax"]);
-// var_dump($results["total"]);
-// die();
+    if(floatval($invoice["subtotal"]) > 0.0 ){
+        $tax=floatval($invoice["tax"]);
+        $sub_total = floatval($invoice["subtotal"]);
+        $amount = floatval($invoice["total"]);
+    }else{
+        $tax="0";
+        $sub_total = $params["amount"];
+        $amount = $params["amount"];
+    }
     $confirmationUrl = $params['systemurl'].'modules/gateways/callback/epaycoagregador.php';
-    return sprintf('
-        <form>
-            <script src="https://checkout.epayco.co/checkout.js"
+    return sprintf('<form>
+                <script src="https://epayco-checkout-testing.s3.amazonaws.com/checkout.preprod.js"
                 class="epayco-button"
                 data-epayco-key="%s"
-                data-epayco-tax-base="%s"
-                data-epayco-tax="%s" 
                 data-epayco-amount="%s"
+                data-epayco-tax-base="%s"
+                data-epayco-tax="%s"
                 data-epayco-name="%s"
                 data-epayco-description="%s"
                 data-epayco-currency="%s"
@@ -129,10 +135,32 @@ $results = localAPI($command, $postData, $adminUsername);
                 data-epayco-country="%s"
                 data-epayco-response="%s"
                 data-epayco-confirmation="%s"
+                data-epayco-external="%s"
+                data-epayco-button="https://multimedia.epayco.co/epayco-landing/btns/Boton-epayco-color1.png"
+                data-epayco-email-billing="%s"
+                data-epayco-name-billing="%s"
+                data-epayco-address-billing="%s"
+                data-epayco-extra1="%s"
+                data-epayco-extra2="%s"
                 >
             </script>
+            
+            <script>
+                window.onload = function() {
+                    document.addEventListener("contextmenu", function(e){
+                        e.preventDefault();
+                    }, false);
+                } 
+                $(document).keydown(function (event) {
+                    if (event.keyCode == 123) {
+                        return false;
+                    } else if (event.ctrlKey && event.shiftKey && event.keyCode == 73) {        
+                        return false;
+                    }
+                });
+            </script>
         </form>
-    ', $params['publicKey'],$results["subtotal"],$results["tax"],$results["total"], $description, $description,strtolower($currencyCode), $testMode, $params['invoiceid'], $countryCode, $confirmationUrl, $confirmationUrl);
+    ', $params['publicKey'], $amount,$sub_total,$tax, $description, $description,strtolower($currencyCode), $testMode, $params['invoiceid'], $countryCode, $confirmationUrl, $confirmationUrl, $externalMode, $email, $billing_name, $address1,$params['invoiceid'],$invoiceData[0]->id);
 }
 
 function epaycoagregador_getAdminUserWithApiAccess(){
