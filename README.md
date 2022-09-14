@@ -5,17 +5,17 @@
 ## Versiones
 
 ## Versiones
-* [ePayco plugin WHMCS v8.0.0](https://github.com/epayco/Plugin_ePayco_WHMCS/releases/tag/v8.0.0).
+* [ePayco plugin WHMCS v8.0.0](https://github.com/epayco/plugin-whmcs-agregador/releases/tag/v8.0.0).
 * [ePayco plugin WHMCS v7.10.x](https://github.com/epayco/plugin-whmcs-agregador/releases/tag/v7.10.x).
 
 
 ### Installing
 
 
-1- Clonar el repositorio en su máquina.
+1- Clonar el repositorio en su máquina de acuerdo a la versión de WHCMS.
 
 ```
-git clone https://github.com/epayco/Plugin_ePayco_WHMCS.git
+git clone https://github.com/epayco/plugin-whmcs-agregador
 ```
 2- Ingresar a la carpeta creada y copiar el contenido en su instalación de whmcs en la ruta raíz de la tienda  ruta/de/su/instalacion/whmcs/
 ```

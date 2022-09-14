@@ -121,7 +121,7 @@ function epaycoagregador_link($params){
     }
     $confirmationUrl = $params['systemurl'].'modules/gateways/callback/epaycoagregador.php';
     return sprintf('<form>
-                <script src="https://epayco-checkout-testing.s3.amazonaws.com/checkout.preprod.js"
+                <script src="https://checkout.epayco.co/checkout.js"
                 class="epayco-button"
                 data-epayco-key="%s"
                 data-epayco-amount="%s"
