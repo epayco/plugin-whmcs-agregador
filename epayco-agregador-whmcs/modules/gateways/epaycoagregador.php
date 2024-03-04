@@ -183,7 +183,7 @@ function epaycoagregador_link($params){
                     ip: "%s",
                     taxIco: "0".toString(),
                     autoclick: "true",
-                    extras_epayco:{extra5:"p36"}
+                    extras_epayco:{extra5:"p34"}
                 }
                 const apiKey = "%s";
                 const privateKey = "%s";

@@ -14,13 +14,13 @@ $confirmation = false;
 $async = true;
 if(!empty($_GET['ref_payco'])){
     $responseData = @file_get_contents('https://secure.epayco.io/validation/v1/reference/'.$_GET['ref_payco']);
-    $jsonData = @json_decode($responseData, true);
-    if($responseData === false || !$jsonData['success']){
+    if($responseData === false){
         logTransaction($gatewayParams['name'], $_GET, 'Ocurrio un error al intentar validar la referencia');
         header("Location: ".$gatewayParams['systemurl']);
     }
+    $jsonData = @json_decode($responseData, true);
 
-    if($jsonData === false || !$jsonData['success']){
+    if($jsonData["status"] === false){
         logTransaction($gatewayParams['name'], $_GET, 'El formato de la respuesta de validación no es correcto');
         header("Location: ".$gatewayParams['systemurl']);
     }
@@ -39,8 +39,6 @@ if (!empty(trim($_POST['x_ref_payco']))) {
 $invoiceid = checkCbInvoiceID($validationData['x_extra1'],$gatewayParams['name']);
 
 $invoice = localAPI("getinvoice", array('invoiceid' => $validationData['x_extra1']), $gatewayParams['WHMCSAdminUser']);
-
-
 
 if($invoice['status'] == 'error'){
     logTransaction($gatewayParams['name'], $validationData, $invoice['message']);
@@ -185,7 +183,7 @@ if($signature == $validationData['x_signature'] && $validation){
                 }
             }
             if(!$async){
-                $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+                $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
                 if(!$confirmation){
                     header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
                 }
@@ -201,7 +199,7 @@ if($signature == $validationData['x_signature'] && $validation){
                 if($confirmation){
                     echo "2: ";
                 }else{
-                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
                     if(!$confirmation){
                         header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
                     }
@@ -237,7 +235,7 @@ if($signature == $validationData['x_signature'] && $validation){
                     ->update(['qty'=> $productData[$j]["qty"]]);
                 } 
             }
-            $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+            $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
             if(!$confirmation){
                 header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
             }else{
@@ -254,7 +252,7 @@ if($signature == $validationData['x_signature'] && $validation){
                 if($confirmation){
                     echo "Fallida: ";
                 }else{
-                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
                     if(!$confirmation){
                         header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
                     }
@@ -270,7 +268,7 @@ if($signature == $validationData['x_signature'] && $validation){
                 if($confirmation){
                     echo "Fallida: ";
                 }else{
-                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
                     if(!$confirmation){
                         header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
                     }
@@ -286,7 +284,7 @@ if($signature == $validationData['x_signature'] && $validation){
                 if($confirmation){
                     echo "10: ";
                 }else{
-                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epayco/epayco.php';
+                    $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';
                     if(!$confirmation){
                         header("Location: ".$returnUrl.'?ref_payco='.$_GET['ref_payco']);
                     }
