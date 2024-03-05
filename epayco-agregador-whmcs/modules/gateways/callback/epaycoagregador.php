@@ -3,7 +3,6 @@ require_once __DIR__ . '/../../../init.php';
 require_once __DIR__ . '/../../../includes/gatewayfunctions.php';
 require_once __DIR__ . '/../../../includes/invoicefunctions.php';
 use Illuminate\Database\Capsule\Manager as Capsule;
-use Illuminate\Database\Connection as QueryBuilder;
 
 $gatewayParams = getGatewayVariables('epaycoagregador');
 
@@ -110,7 +109,7 @@ $adminUsername = $data[0]->username;
 
 $signature = hash('sha256',
     $gatewayParams['customerID'].'^'
-    .$gatewayParams['privateKey'].'^'
+    .$gatewayParams['p_key'].'^'
     .$validationData['x_ref_payco'].'^'
     .$validationData['x_transaction_id'].'^'
     .$validationData['x_amount'].'^'
@@ -120,7 +119,6 @@ $signature = hash('sha256',
 if($signature == $validationData['x_signature'] && $validation){
     switch ((int)$validationData['x_cod_response']) {
         case 1:{
-            
             if($invoice['status'] != 'Paid' && $invoice['status'] != 'Cancelled'){
                 addInvoicePayment(
                     $invoice['invoiceid'],
@@ -209,11 +207,7 @@ if($signature == $validationData['x_signature'] && $validation){
             }
         }break;
         case 3:{
-
-
-
             if($invoice['status'] == 'Cancelled'){
-                    
                 $productsOrder = Capsule::table('tblinvoiceitems')
                     ->select('tblinvoiceitems.description')
                     ->where('tblinvoiceitems.invoiceid', '=', $validationData['x_extra2'])
@@ -234,11 +228,11 @@ if($signature == $validationData['x_signature'] && $validation){
                     $productData[$i]["name"] = $products[$i]->name;
                     $productData[$i]["qty"] =  $products[$i]->qty-1;
                 } 
-                 
+                
                 for($j=0; $j<count($productData); $j++ ){
-                   $connection = Capsule::table('tblproducts')
+                   Capsule::table('tblproducts')
                     ->where('name',"=", $productData[$j]["name"])
-                    ->update(['qty'=> $productData[$j]["qty"]]); 
+                    ->update(['qty'=> $productData[$j]["qty"]]);
                 } 
             }
             $returnUrl = $gatewayParams['systemurl'].'modules/gateways/epaycoagregador/epaycoagregador.php';

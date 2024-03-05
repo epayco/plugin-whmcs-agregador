@@ -98,7 +98,7 @@ echo sprintf('
     }
     $(document).ready(function() {
       var location_ = location.href;
-      var inicio = location_.replace("/modules/gateways/epaycoagregador/epaycoagregador.php", "");
+      var inicio = location_.replace("/modules/gateways/epayco/epayco.php", "");
       var inicio_ = document.getElementById("inicio");
       inicio_.href = inicio;
       var ref_payco = getQueryParam("ref_payco");
