@@ -5,7 +5,7 @@ use Illuminate\Database\Capsule\Manager as Capsule;
 function epaycoagregador_MetaData()
 {
     return array(
-        'DisplayName' => 'ePayco_agregador',
+        'DisplayName' => 'ePaycoagregador',
         'APIVersion' => '1.1', // Use API Version 1.1
         'DisableLocalCredtCardInput' => true,
         'TokenisedStorage' => false,
@@ -26,7 +26,7 @@ function epaycoagregador_config(){
     return array(
         'FriendlyName' => array(
             'Type' => 'System',
-            'Value' => 'ePayco agregador',
+            'Value' => 'ePayco Agregador',
         ),
         'customerID' => array(
             'FriendlyName' => 'P_CUST_ID_CLIENTE',
@@ -43,6 +43,13 @@ function epaycoagregador_config(){
             'Description' => '<br/>Corresponde a la llave de autenticación en el API Rest, Proporcionado en su panel de clientes en la opción configuración.',
         ),
         'privateKey' => array(
+            'FriendlyName' => 'PRIVATE_KEY',
+            'Type' => 'text',
+            'Size' => '32',
+            'Default' => '',
+            'Description' => '<br/>Corresponde a la llave de autenticación en el API Rest, Proporcionado en su panel de clientes en la opción configuración.',
+        ),
+        'p_key' => array(
             'FriendlyName' => 'P_KEY',
             'Type' => 'text',
             'Size' => '32',
@@ -65,10 +72,24 @@ function epaycoagregador_config(){
             ),
             'Description' => '<br/>Moneda de las transacciones.',
         ),
+        'lang' => array(
+            'FriendlyName' => 'Lenguaje',
+            'Type' => 'dropdown',
+            'Options' => array(
+                'es' => 'Español',
+                'en' => 'Ingles'
+            ),
+            'Description' => '<br/>lenguaje checkout.',
+        ),
         'testMode' => array(
             'FriendlyName' => 'Modo de pruebas',
             'Type' => 'yesno',
             'Description' => 'Habilite para activar el modo de pruebas',
+        ),
+        'externalMode' => array(
+            'FriendlyName' => 'Standar checkout',
+            'Type' => 'yesno',
+            'Description' => 'Redirija a la pasarela de pagos',
         ),
         'WHMCSAdminUser' => array(
             'FriendlyName' => 'Usuario administrador WHMCS',
@@ -86,7 +107,12 @@ function epaycoagregador_link($params){
     }
 
     $countryCode = $params['countryCode'];
-
+    $firstname = $params['clientdetails']['firstname'];
+    $lastname = $params['clientdetails']['lastname'];
+    $email = $params['clientdetails']['email'];
+    $address1 = $params['clientdetails']['address1'];
+    $returnUrl = $params['returnurl'];
+    $billing_name = $firstname." ".$lastname;
     if($params['currencyCode'] == 'default'){
         $clientDetails = localAPI("getclientsdetails", ["clientid" => $params['clientdetails']['userid'], "responsetype" => "json"], $params['WHMCSAdminUser']);
         $currencyCode = strtolower($clientDetails['currency_code']);
@@ -96,43 +122,157 @@ function epaycoagregador_link($params){
 
     $testMode = $params['testMode'] == 'on' ? 'true' : 'false';
 
+    $externalMode = $params['externalMode'] == 'on' ? 'true' : 'false';
+
     $invoice = localAPI("getinvoice", array('invoiceid' => $params['invoiceid']), $params['WHMCSAdminUser']);
-        $command = 'GetInvoice';
-        $postData = array(
-            'invoiceid' => $params['invoiceid'],
-        );
-        $adminUsername = $params['WHMCSAdminUser']; // Optional for WHMCS 7.2 and later
+    $invoiceData = Capsule::table('tblorders')
+        ->select('tblorders.id')
+        ->where('tblorders.invoiceid', '=', $params['invoiceid'])
+        ->get();
 
-$results = localAPI($command, $postData, $adminUsername);
-//print_r($results);
-
-    $description2 = epaycoagregador_getChargeDescription($results['items']['item']);
     $description = epaycoagregador_getChargeDescription($invoice['items']['item']);
-// var_dump($results["subtotal"]);
-// var_dump($results["tax"]);
-// var_dump($results["total"]);
-// die();
-    $confirmationUrl = $params['systemurl'].'modules/gateways/callback/epaycoagregador.php';
+    if(floatval($invoice["subtotal"]) > 0.0 ){
+        $tax=floatval($invoice["tax"]);
+        $sub_total = floatval($invoice["subtotal"]);
+        $amount = floatval($invoice["total"]);
+    }else{
+        $tax="0";
+        $sub_total = $params["amount"];
+        $amount = $params["amount"];
+    }
+
+    $confirmationUrl = $params['systemurl'].'/modules/gateways/callback/epayco.php';
+    $lang = $params['lang'];
+    if ($lang === "en") {
+        $epaycoButtonImage = 'https://multimedia.epayco.co/epayco-landing/btns/Boton-epayco-color-Ingles.png';
+    }else{
+        $epaycoButtonImage = 'https://multimedia.epayco.co/epayco-landing/btns/Boton-epayco-color1.png';
+    }
+    $ip=getCustomerIp();
     return sprintf('
-        <form>
-            <script src="https://checkout.epayco.co/checkout.js"
-                class="epayco-button"
-                data-epayco-key="%s"
-                data-epayco-tax-base="%s"
-                data-epayco-tax="%s" 
-                data-epayco-amount="%s"
-                data-epayco-name="%s"
-                data-epayco-description="%s"
-                data-epayco-currency="%s"
-                data-epayco-test="%s"
-                data-epayco-invoice="%s"
-                data-epayco-country="%s"
-                data-epayco-response="%s"
-                data-epayco-confirmation="%s"
-                >
+            <p>       
+                <center>
+                <a id="btn_epayco" href="#">
+                    <img src="'.$epaycoButtonImage.'">
+                </a>
+                </center> 
+            </p>
+            <script
+                src="https://checkout.epayco.co/checkout.js">
+            </script>
+            <script>
+                var data = {
+                    amount: "%s".toString(),
+                    tax_base: "%s".toString(),
+                    tax: "%s".toString(),
+                    name: "%s",
+                    description: "%s",
+                    currency: "%s",
+                    test: "%s".toString(),
+                    invoice: "%s",
+                    country: "%s",
+                    response: "%s",
+                    confirmation: "%s",
+                    external: "%s",
+                    email_billing: "%s",
+                    name_billing: "%s",
+                    address_billing: "%s",
+                    extra1: "%s",
+                    extra2: "%s",
+                    lang: "%s",
+                    ip: "%s",
+                    taxIco: "0".toString(),
+                    autoclick: "true",
+                    extras_epayco:{extra5:"P34"}
+                }
+                const apiKey = "%s";
+                const privateKey = "%s";
+                var openNewChekout = function () {
+                    if(localStorage.getItem("invoicePayment") == null){
+                        localStorage.setItem("invoicePayment", data.invoice);
+                        makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
+                    }else{
+                        if(localStorage.getItem("invoicePayment") != data.invoice){
+                            localStorage.removeItem("invoicePayment");
+                            localStorage.setItem("invoicePayment", data.invoice);
+                            makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
+                        }else{
+                            makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
+                        }
+                    }
+                }
+                var makePayment = function (privatekey, apikey, info, external) {
+                    const headers = { "Content-Type": "application/json" } ;
+                    headers["privatekey"] = privatekey;
+                    headers["apikey"] = apikey;
+                    var payment =   function (){
+                        return  fetch("https://cms.epayco.co/checkout/payment/session", {
+                            method: "POST",
+                            body: JSON.stringify(info),
+                            headers
+                        })
+                            .then(res =>  res.json())
+                            .catch(err => err);
+                    }
+                    payment()
+                        .then(session => {
+                            if(session.data.sessionId != undefined){
+                                localStorage.removeItem("sessionPayment");
+                                localStorage.setItem("sessionPayment", session.data.sessionId);
+                                const handlerNew = window.ePayco.checkout.configure({
+                                    sessionId: session.data.sessionId,
+                                    external: external,
+                                });
+                                handlerNew.openNew()
+                            }
+                        })
+                        .catch(error => {
+                            error.message;
+                        });
+                }
+                var openChekout = function () {
+                    //handler.open(data);
+                    openNewChekout()
+                }
+                var bntPagar = document.getElementById("btn_epayco");
+                bntPagar.addEventListener("click", openChekout);
+                openChekout()
+                window.onload = function() {
+                    document.addEventListener("contextmenu", function(e){
+                        e.preventDefault();
+                    }, false);
+                } 
+                $(document).keydown(function (event) {
+                    if (event.keyCode == 123) {
+                        return false;
+                    } else if (event.ctrlKey && event.shiftKey && event.keyCode == 73) {        
+                        return false;
+                    }
+                });
             </script>
         </form>
-    ', $params['publicKey'],$results["subtotal"],$results["tax"],$results["total"], $description, $description,strtolower($currencyCode), $testMode, $params['invoiceid'], $countryCode, $confirmationUrl, $confirmationUrl);
+    ',  $amount,
+        $sub_total,
+        $tax,
+        $description, 
+        $description,
+        strtolower($currencyCode), 
+        $testMode, 
+        $params['invoiceid'], 
+        $countryCode, 
+        $confirmationUrl, 
+        $confirmationUrl, 
+        $externalMode, 
+        $email, 
+        $billing_name, 
+        $address1,
+        $params['invoiceid'],
+        $invoiceData[0]->id,
+        $lang,
+        $ip,
+        $params['publicKey'],
+        $params['privateKey']
+    );
 }
 
 function epaycoagregador_getAdminUserWithApiAccess(){
@@ -183,4 +323,25 @@ function epaycoagregador_loadCountries()
     }
 
     return $countries;
+}
+
+function getCustomerIp(){
+    $ipaddress = '';
+    if (isset($_SERVER['HTTP_CLIENT_IP']))
+        $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+    else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+        $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    else if(isset($_SERVER['HTTP_X_FORWARDED']))
+        $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+    else if(isset($_SERVER['HTTP_X_CLUSTER_CLIENT_IP']))
+        $ipaddress = $_SERVER['HTTP_X_CLUSTER_CLIENT_IP'];
+    else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
+        $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+    else if(isset($_SERVER['HTTP_FORWARDED']))
+        $ipaddress = $_SERVER['HTTP_FORWARDED'];
+    else if(isset($_SERVER['REMOTE_ADDR']))
+        $ipaddress = $_SERVER['REMOTE_ADDR'];
+    else
+        $ipaddress = 'UNKNOWN';
+    return $ipaddress;
 }
