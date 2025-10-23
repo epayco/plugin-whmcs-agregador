@@ -120,9 +120,9 @@ function epaycoagregador_link($params){
         $currencyCode = $params['currencyCode'];
     }
 
-    $testMode = $params['testMode'] == 'on' ? 'true' : 'false';
+    $testMode = $params['testMode'] == 'on' ? true : false;
 
-    $externalMode = $params['externalMode'] == 'on' ? 'true' : 'false';
+    $externalMode = $params['externalMode'] == 'on' ? 'standard' : 'onepage';
 
     $invoice = localAPI("getinvoice", array('invoiceid' => $params['invoiceid']), $params['WHMCSAdminUser']);
     $invoiceData = Capsule::table('tblorders')
@@ -141,7 +141,7 @@ function epaycoagregador_link($params){
         $amount = $params["amount"];
     }
 
-    $confirmationUrl = $params['systemurl'].'/modules/gateways/callback/epayco.php';
+    $confirmationUrl = $params['systemurl'].'/modules/gateways/callback/epaycoagregador.php';
     $lang = $params['lang'];
     if ($lang === "en") {
         $epaycoButtonImage = 'https://multimedia.epayco.co/epayco-landing/btns/Boton-epayco-color-Ingles.png';
@@ -149,7 +149,62 @@ function epaycoagregador_link($params){
         $epaycoButtonImage = 'https://multimedia.epayco.co/epayco-landing/btns/Boton-epayco-color1.png';
     }
     $ip=getCustomerIp();
-    return sprintf('
+    $tokenResponse = epaycoBerarToken(
+            $params['publicKey'],
+            $params['privateKey']
+        );
+         $token = null;
+        if(isset($tokenResponse['token'])){
+            $token = $tokenResponse['token'];
+        }
+        $dataScript  = array(
+            "name"=>substr($description, 0, 50),
+            "description"=>substr($description, 0, 50),
+            "invoice"=>(string)$params['invoiceid'],
+            "currency"=>strtolower($currencyCode),
+            "amount"=>floatval($amount),
+            "taxBase"=>floatval($sub_total),
+            "tax"=>floatval($tax),
+            "taxIco"=>floatval(0),
+            "country"=>$countryCode,
+            "lang"=>$lang,
+            "confirmation"=>$confirmationUrl,
+            "response"=> $confirmationUrl,
+            "billing" => [
+                "name" =>$billing_name,
+                "address" => $address1,
+                "email" => $email,
+            ],
+            "autoclick"=> true,
+            "ip"=>$ip,
+            "test"=>$testMode,
+             "extras" => [
+                "extra1" => (string)$params['invoiceid'],
+                "extra2" => (string)$invoiceData[0]->id,
+                "extra3" => $lang
+            ],
+            "extrasEpayco" => [
+                "extra5" => "P36"
+            ],
+            "epaycoMethodsDisable" => [],
+            "method"=> "POST",
+            "checkout_version"=>"2",
+            "autoClick" => false,
+        );
+
+        $checkoutSessionResponse = epaycoSessionCheckout($token, $dataScript);
+        $sessionId = null;
+        if(isset($checkoutSessionResponse['success'])){
+            $sessionId = $checkoutSessionResponse["data"]['sessionId'];
+        }
+        $payload = array(
+            'sessionId' => $sessionId,
+            'type' => $externalMode,
+            'test' => $testMode,
+        );
+
+        $checkout =  base64_encode(json_encode($payload));  
+        $code = sprintf('
             <p>       
                 <center>
                 <a id="btn_epayco" href="#">
@@ -158,83 +213,30 @@ function epaycoagregador_link($params){
                 </center> 
             </p>
             <script
-                src="https://epayco-checkout-testing.s3.amazonaws.com/checkout.preprod.js">
+                src="https://epayco-checkout-testing.s3.amazonaws.com/checkout.preprod-v2.js">
             </script>
             <script>
-                var data = {
-                    amount: "%s".toString(),
-                    tax_base: "%s".toString(),
-                    tax: "%s".toString(),
-                    name: "%s",
-                    description: "%s",
-                    currency: "%s",
-                    test: "%s".toString(),
-                    invoice: "%s",
-                    country: "%s",
-                    response: "%s",
-                    confirmation: "%s",
-                    external: "%s",
-                    email_billing: "%s",
-                    name_billing: "%s",
-                    address_billing: "%s",
-                    extra1: "%s",
-                    extra2: "%s",
-                    lang: "%s",
-                    ip: "%s",
-                    taxIco: "0".toString(),
-                    autoclick: "true",
-                    extras_epayco:{extra5:"P36"}
-                }
-                const apiKey = "%s";
-                const privateKey = "%s";
+                var bntPagar = document.getElementById("btn_epayco");
+                const params = JSON.parse(atob("%s"));
+                let {
+                    sessionId,
+                    type,
+                    test
+                } = params;
+                const checkout = ePayco.checkout.configure({
+                    sessionId: sessionId,
+                    type: type,
+                    test: test
+                });
                 var openNewChekout = function () {
-                    if(localStorage.getItem("invoicePayment") == null){
-                        localStorage.setItem("invoicePayment", data.invoice);
-                        makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
-                    }else{
-                        if(localStorage.getItem("invoicePayment") != data.invoice){
-                            localStorage.removeItem("invoicePayment");
-                            localStorage.setItem("invoicePayment", data.invoice);
-                            makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
-                        }else{
-                            makePayment(privateKey,apiKey,data, data.external == "true"?true:false)
-                        }
-                    }
-                }
-                var makePayment = function (privatekey, apikey, info, external) {
-                    const headers = { "Content-Type": "application/json" } ;
-                    headers["privatekey"] = privatekey;
-                    headers["apikey"] = apikey;
-                    var payment =   function (){
-                        return  fetch("https://cms.epayco.io/checkout/payment/session", {
-                            method: "POST",
-                            body: JSON.stringify(info),
-                            headers
-                        })
-                            .then(res =>  res.json())
-                            .catch(err => err);
-                    }
-                    payment()
-                        .then(session => {
-                            if(session.data.sessionId != undefined){
-                                localStorage.removeItem("sessionPayment");
-                                localStorage.setItem("sessionPayment", session.data.sessionId);
-                                const handlerNew = window.ePayco.checkout.configure({
-                                    sessionId: session.data.sessionId,
-                                    external: external,
-                                });
-                                handlerNew.openNew()
-                            }
-                        })
-                        .catch(error => {
-                            error.message;
-                        });
+                    checkout.open();
                 }
                 var openChekout = function () {
                     //handler.open(data);
                     openNewChekout()
+                    bntPagar.style.pointerEvents = "none";
+                    bntPagar.style.opacity = "0.5";
                 }
-                var bntPagar = document.getElementById("btn_epayco");
                 bntPagar.addEventListener("click", openChekout);
                 //openChekout()
                 window.onload = function() {
@@ -250,29 +252,12 @@ function epaycoagregador_link($params){
                     }
                 });
             </script>
-        </form>
-    ',  $amount,
-        $sub_total,
-        $tax,
-        $description, 
-        $description,
-        strtolower($currencyCode), 
-        $testMode, 
-        $params['invoiceid'], 
-        $countryCode, 
-        $confirmationUrl, 
-        $confirmationUrl, 
-        $externalMode, 
-        $email, 
-        $billing_name, 
-        $address1,
-        $params['invoiceid'],
-        $invoiceData[0]->id,
-        $lang,
-        $ip,
-        $params['publicKey'],
-        $params['privateKey']
-    );
+        %s
+        ',  
+         $checkout,
+         $nota
+        );
+        return $code;
 }
 
 function epaycoagregador_getAdminUserWithApiAccess(){
@@ -324,6 +309,92 @@ function epaycoagregador_loadCountries()
 
     return $countries;
 }
+
+function epaycoSessionCheckout($bearer_token, $body){
+        $headers = array(
+                'Content-Type: application/json',
+                'Authorization: Bearer '.$bearer_token
+        );
+
+        $url = 'https://eks-apify-service.epayco.io/payment/session/create';
+        $responseData = PostCurl($url, $body, $headers);
+        $jsonData = @json_decode($responseData, true);
+        return $jsonData;
+    }
+    
+    function epaycoBerarToken($public_key,$private_key)
+    {
+        $publicKey = trim($public_key);
+        $privateKey = trim($private_key);
+        $bearer_token = base64_encode($publicKey . ":" . $privateKey);
+        
+        if (!isset($_COOKIE[$publicKey])) {
+            $token = base64_encode($publicKey . ":" . $privateKey);
+            $bearer_token = $token;
+            $cookie_value = $bearer_token;
+            setcookie($publicKey, $cookie_value, time() + (60 * 14), "/");
+        } else {
+            $bearer_token = $_COOKIE[$publicKey];
+        }
+        
+        $headers = array(
+                'Content-Type: application/json',
+                'Authorization: Basic '.$bearer_token
+        );
+
+        $data = array(
+            'public_key' => $publicKey
+        );
+        $url = 'https://eks-apify-service.epayco.io/login';
+        //return $this->epayco_realizar_llamada_api("login", [], $headers);
+        $responseData = PostCurl($url, $data, $headers);
+        $jsonData = @json_decode($responseData, true);
+        return $jsonData ;
+    }
+    
+    function PostCurl($url, $body, $headers, $method='POST')
+    {
+        try{
+            // Inicializamos cURL
+            $ch = curl_init();
+            $timeout = 5;
+            $user_agent = 'Mozilla/5.0 (Windows NT 6.1; rv:8.0) Gecko/20100101 Firefox/8.0';
+
+            // Configuraciones de cURL
+            curl_setopt($ch, CURLOPT_URL, $url);
+            if(!$body){
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);    // Desactivar verificación de certificado SSL
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);    // Desactivar verificación de host SSL
+                curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);   // Establecer el agente de usuario
+                curl_setopt($ch, CURLOPT_HEADER, 0);                // No incluir encabezados en la salida
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);        // Devolver la respuesta como string
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout); // Tiempo de conexión máximo
+                curl_setopt($ch, CURLOPT_MAXREDIRS, 10);            // Máximo de redirecciones permitidas
+            }else{
+                $jsonData = json_encode($body);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method); 
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData); 
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1); // Seguir redirecciones
+                curl_setopt($ch, CURLOPT_TIMEOUT, $timeout); // Tiempo de espera máximo
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Tiempo de espera máximo
+                curl_setopt($ch,CURLOPT_SSLKEYPASSWD, '');
+                curl_setopt($ch,CURLOPT_ENCODING, "");
+                curl_setopt($ch,CURLOPT_MAXREDIRS, 10);
+                curl_setopt($ch,CURLOPT_TIMEOUT, 600);
+                curl_setopt($ch,CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+            }
+            $data = curl_exec($ch);
+            if ($data === false) {
+                return array('curl_error' => curl_error($ch), 'curerrno' => curl_errno($ch));
+            }
+            curl_close($ch);
+
+            return $data;
+        } catch(\Exception $ex) {
+            throw new Exception("No se pudorealizar la accion: " . $ex->getMessage());
+        }
+    }
 
 function getCustomerIp(){
     $ipaddress = '';
