@@ -160,7 +160,7 @@ function epaycoagregador_link($params){
         $dataScript  = array(
             "name"=>substr($description, 0, 50),
             "description"=>substr($description, 0, 50),
-            "invoice"=>(string)$params['invoiceid'],
+            "invoice"=>(string)$params['invoiceid']."_test",
             "currency"=>strtolower($currencyCode),
             "amount"=>floatval($amount),
             "taxBase"=>floatval($sub_total),
@@ -278,10 +278,19 @@ function epaycoagregador_getAdminUserWithApiAccess(){
 function epaycoagregador_getChargeDescription($invoceItems){
     $descriptions = array();
     foreach($invoceItems as $item){
-        $descriptions[] = $item['description'];
+        $descriptions[] = string_sanitize($item['description']);
     }
 
     return implode(' - ', $descriptions);
+}
+function string_sanitize($string, $force_lowercase = true, $anal = false)
+{
+
+    $strip = array("~", "`", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "=", "+", "[", "{", "]", "}", "\\", "|", ";", ":", "\"", "'", "&#8216;", "&#8217;", "&#8220;", "&#8221;", "&#8211;", "&#8212;", "â€”", "â€“", ",", "<", ".", ">", "/", "?");
+    $clean = trim(str_replace($strip, "", strip_tags($string)));
+    $clean = preg_replace('/\s+/', "_", $clean);
+    $clean = ($anal) ? preg_replace("/[^a-zA-Z0-9]/", "", $clean) : $clean;
+    return $clean;
 }
 
 function epaycoagregador_loadCountries()
